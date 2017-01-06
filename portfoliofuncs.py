@@ -6,7 +6,7 @@ import networkx as nx
 import cvxopt
 from cvxopt import solvers,sparse,printing
 import sklearn.covariance as cov
-
+import pickle
 
 def logdiff(x):
     """
@@ -652,13 +652,13 @@ def check_abs_change_portfolio(output_array,vector_return_bool=False):
         ---------------------
 
     """
-    A = np.r_[np.array([np.zeros(output_array.shape[1])]), output_array]
-    B = np.r_[output_array, np.array([np.zeros(output_array.shape[1])])]
+    A = np.r_[np.array([np.zeros(output_array.shape[1])]), output_array] #add zero on the top
+    B = np.r_[output_array, np.array([np.zeros(output_array.shape[1])])] #add zero at bottom
     C = B - A
     D = C[1:C.shape[0]-1,:] #D is (n-1 * p matrix) since taking difference of t and t-1
     abs_change_vector = np.sum(np.abs(D),0)
     abs_change = np.sum(abs_change_vector)
-    if vector_return_bool==True:
+    if vector_return_bool == True:
         return abs_change_vector
     else:
         return abs_change
@@ -689,6 +689,66 @@ def plot_test_return(empirical_test_return, lasso_test_return):
     plt.ylabel("return of test data")
     plt.xlabel("time")
     fig.show()
+
+def check_main_stock_in_portfolio(output_array,thre=0.01,):
+    bool_array = output_array > thre
+    return np.sum(bool_array,0)
+
+def normalized_ratio_array(output_array,thre=0.01):
+    output_norm = np.array([ normalized_ratio(output_array[i],thre=thre) for i in np.arange(output_array.shape[0]) ])
+    return output_norm
+
+def plot_abs_change(emp_output_array, lasso_output_array):
+    """
+    Ex. pf.plot_abs_change(emp_roling_dict['sol_output_array'], lasso_roling_dict['sol_output_array'])
+    """
+    range_list = np.arange(0.01,0.5,0.025)
+    emp_change = np.array([ check_abs_change_portfolio(normalized_ratio_array(emp_output_array,thre=i)) for i in range_list ])
+    lasso_change = np.array([ check_abs_change_portfolio(normalized_ratio_array(lasso_output_array,thre=i)) for i in range_list ])
+
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    ax1.plot(range_list, emp_change, label="Empirical")
+    ax1.plot(range_list, lasso_change, label="Lasso")
+    plt.title("Abs values of change")
+    plt.xlabel("ratio of threshold")
+    plt.ylabel("sum of absolute value of change")
+    plt.legend()
+    fig.show()
+
+def save_dic(dic, PATH):
+    """
+        input paramater
+        ----------------------
+        dic : dictionary
+            output of roling_portfolio function.
+        PATH : string
+        ---------------------
+        returns
+        ---------------------
+        None
+        ---------------------
+
+    """
+    output = open(PATH, 'wb')
+    pickle.dump(dic, output)
+    output.close()
+
+def load_dic(PATH):
+    """
+        input paramater
+        ----------------------
+        PATH : string
+        ---------------------
+        returns
+        ---------------------
+        dic : dictionary
+        ---------------------
+
+    """
+    pkl_file = open(PATH, 'rb')
+    dic = pickle.load(pkl_file)
+    return dic
 
 if __name__ == '__main__':
     data = np.loadtxt("/Users/kazeto/Desktop/GradThesis/nikkei/logdiffdata.csv",delimiter=",")
