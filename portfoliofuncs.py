@@ -461,7 +461,7 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
         window_size : integer
             the range of window which caluculate ratio of portfolio.
         methods : string 
-            methods should be 'empirical' or 'lasso'.
+            methods should be 'empirical' ,'lasso' or 'shrunk'.
         rho : float
             adding value to diagonal element in coordinate descent algorithm.
         lam_rho_ratio : float
@@ -486,13 +486,15 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
     status_array = []
 
     cvxopt.matrix_repr = printing.matrix_str_default #for dealing cvxopt matrix as np_matrix.
-    if using_sklearn == True:
+
+    if methods == 'lasso' and using_sklearn == True:
         model = cov.GraphLasso(alpha=0.01,mode='cd',tol=1e-3)
+    elif methods == 'shrunk':
+        model = cov.ShrunkCovariance(shrinkage=0.6,assume_centered=False)
 
     for start in np.arange(len(d) - window_size -1):
         print("----------- step : {} -----------".format(start))
         d_window = window_data(d,start,window_size)
-        S_window = np.cov(d_window.T,ddof=1)
         N_window = d_window.shape[0]
         M_window = d_window.shape[1]
 
@@ -500,14 +502,18 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
             model.fit(d_window)
             W_window = model.covariance_
         elif methods == 'lasso' and using_sklearn == False:
+            S_window = np.cov(d_window.T,ddof=1)
             W_window = cov_lasso_optim(S=S_window,N=N_window,M=M_window,rho=rho,lam_rho_ratio=lam_rho_ratio)
+        elif methods == 'shrunk':
+            model.fit(d_window)
+            W_window = np.linalg.inv(model.get_precision())
 
         if methods == 'empirical':
-            sol, r = mean_variance_model_optim(d_window,r0=r0)
-        elif methods == 'lasso':
-            sol, r = mean_variance_model_optim(d_window,S=W_window,r0=r0)
+            sol, r = mean_variance_model_optim(d_window, r0=r0)
+        elif methods == 'lasso' or 'shrunk':
+            sol, r = mean_variance_model_optim(d_window, S=W_window, r0=r0)
         else:
-             raise ValueError("methods should be \'empirical\' or \'lasso\'.")
+             raise ValueError("methods should be \'empirical\', \'lasso\' or \'shrunk\'.")
 
         sol_output = sol['x']
         testdata = d[start+window_size+1:,:]
@@ -544,6 +550,7 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
     back_up_dict['window_size'] = window_size
     back_up_dict['r0'] = r0
     back_up_dict['data_dimension'] = d.shape[1]
+    back_up_dict['methods'] = methods
 
     if 'unknown' in status_array:
         raise Warning("!!!!!!!!Optimal solution was not found!!!!!!!!!")
@@ -583,10 +590,10 @@ def check_turnover(output_array,thre=0.01,num_return=True):
     else:
         return turnover_array
 
-def turnover_plot(sol_emp_output_array,sol_lasso_output_array):
+def turnover_plot(emp_output_array,lasso_output_array):
     range_list = np.arange(0.01,0.5,0.01)
-    emp_turnover_each_thre = np.array([ check_turnover(sol_emp_output_array,thre=i,num_return=True) for i in range_list ])
-    lasso_turnover_each_thre = np.array([ check_turnover(sol_lasso_output_array,thre=i,num_return=True) for i in range_list ])
+    emp_turnover_each_thre = np.array([ check_turnover(emp_output_array,thre=i,num_return=True) for i in range_list ])
+    lasso_turnover_each_thre = np.array([ check_turnover(lasso_output_array,thre=i,num_return=True) for i in range_list ])
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -596,6 +603,7 @@ def turnover_plot(sol_emp_output_array,sol_lasso_output_array):
     plt.xlabel("threshould of portfolio")
     plt.ylabel("number of turnover")
     plt.title("number of turnover")
+    fig.show()
 
 def normalized_ratio(ratio_vector,thre=0.01):
     """
@@ -663,7 +671,7 @@ def check_abs_change_portfolio(output_array,vector_return_bool=False):
     else:
         return abs_change
 
-def plot_test_return(empirical_test_return, lasso_test_return):
+def plot_test_return(*dicts):
     """
         input paramater
         ----------------------
@@ -672,7 +680,7 @@ def plot_test_return(empirical_test_return, lasso_test_return):
         output of roling_portfolio function.
 
         Ex.
-            plot_test_return(emp_roling_dict['test_return_array'], lasso_roling_dict['test_return_array'])
+            pf.plot_test_return(emp_roling_dict, lasso_roling_dict, shrunk_roling_dict)
         ---------------------
         returns
         ---------------------
@@ -680,12 +688,14 @@ def plot_test_return(empirical_test_return, lasso_test_return):
         ---------------------
 
     """
+    argnum = len(dicts)
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.plot(empirical_test_return, 'b', label="return of Empirical Covariance")
-    ax.plot(lasso_test_return, 'r', label="return of Estimated Covariance by LASSO")
+    for i in np.arange(argnum):
+        ax.plot(dicts[i]['test_return_array'], 'b', label="return of {} Covariance".format(dicts[i]['methods']),color=plt.cm.jet(i*0.4))
     plt.title("Comparison of Retrun")
-    ax.legend(loc = 'bottom left')
+    ax.legend(loc = 'upper center',bbox_to_anchor=(0.5,-0.25))
+    plt.subplots_adjust(bottom=0.4)
     plt.ylabel("return of test data")
     plt.xlabel("time")
     fig.show()
@@ -702,7 +712,7 @@ def plot_abs_change(emp_output_array, lasso_output_array):
     """
     Ex. pf.plot_abs_change(emp_roling_dict['sol_output_array'], lasso_roling_dict['sol_output_array'])
     """
-    range_list = np.arange(0.01,0.5,0.025)
+    range_list = np.arange(0.01,0.8,0.025)
     emp_change = np.array([ check_abs_change_portfolio(normalized_ratio_array(emp_output_array,thre=i)) for i in range_list ])
     lasso_change = np.array([ check_abs_change_portfolio(normalized_ratio_array(lasso_output_array,thre=i)) for i in range_list ])
 
