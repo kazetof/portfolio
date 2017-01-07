@@ -507,7 +507,9 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
         N_window = d_window.shape[0]
         M_window = d_window.shape[1]
 
-        if methods == 'lasso' and using_sklearn_glasso == True:
+        if methods == 'empirical':
+            W_window = np.cov(d_window.T,ddof=1)
+        elif methods == 'lasso' and using_sklearn_glasso == True:
             model.fit(d_window)
             W_window = model.covariance_
         elif methods == 'lasso' and using_sklearn_glasso == False:
@@ -520,14 +522,10 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
             W_window = np.diag(np.diag(np.cov(d_window.T)))
         elif methods == 'singleindex':
             W_window = make_single_index_covariance_matrix(d_window)
-
-        if methods == 'empirical':
-            sol, r = mean_variance_model_optim(d_window, r0=r0)
-        elif methods == 'lasso' or 'shrunk' or 'empirical_isotropy' or 'singleindex':
-            sol, r = mean_variance_model_optim(d_window, S=W_window, r0=r0)
         else:
-             raise ValueError("methods should be \'empirical\', \'lasso\', \'shrunk\', \'empirical_isotropy\' or \'singleindex\'.")
+            raise ValueError("methods should be \'empirical\', \'lasso\', \'shrunk\', \'empirical_isotropy\' or \'singleindex\'.")
 
+        sol, r = mean_variance_model_optim(d_window, S=W_window, r0=r0)
         sol_output = sol['x']
         testdata = d[start+window_size+1:,:]
 
