@@ -397,9 +397,9 @@ def mean_variance_model_optim(data,r=None,S=None,r0=0.01):
     h = cvxopt.matrix(np.zeros(p))
     sol = solvers.qp(P,q,G,h,A,b)
     x = sol['x']
-    #print("ratio of portfolio : {}".format(x))
+    #print("propotion of portfolio : {}".format(x))
     print("portfolio return os {}".format(np.sum(cvxopt.mul(x,cvxopt.matrix(r)))))
-    print("sum of ratio x is {}".format(np.sum(x)))
+    print("sum of propotion x is {}".format(np.sum(x)))
     return sol,x
 
 def split_data(d,split_t):
@@ -459,9 +459,9 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
         r0 : float
             expecting return which the portfolio must satisfy.
         window_size : integer
-            the range of window which caluculate ratio of portfolio.
+            the range of window which caluculate propotion of portfolio.
         methods : string 
-            methods should be 'empirical' ,'lasso' or 'shrunk'.
+            methods should be 'empirical', 'lasso', 'shrunk', 'empirical_isotropy' or 'singleindex'.
         rho : float
             It must be in [0,1]
             adding value to diagonal element in coordinate descent algorithm.
@@ -471,7 +471,7 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
             (lambda is parameter of strongthness of regularlization)
         inportfolio_thre : float
             If inportfolio_thre is not 0.0 then the stocks under inportfolio_thre
-            will be omitted and the ratio of portfolio will be normalized.
+            will be omitted and the propotion of portfolio will be normalized.
         using_sklearn_glasso : bool
         shrunk_param : float
             The shrinkage parameter in shrunk method.
@@ -518,19 +518,21 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
             W_window = np.linalg.inv(model.get_precision())
         elif methods == 'empirical_isotropy':
             W_window = np.diag(np.diag(np.cov(d_window.T)))
+        elif methods == 'singleindex':
+            W_window = make_single_index_covariance_matrix(d_window)
 
         if methods == 'empirical':
             sol, r = mean_variance_model_optim(d_window, r0=r0)
-        elif methods == 'lasso' or 'shrunk' or 'empirical_isotropy':
+        elif methods == 'lasso' or 'shrunk' or 'empirical_isotropy' or 'singleindex':
             sol, r = mean_variance_model_optim(d_window, S=W_window, r0=r0)
         else:
-             raise ValueError("methods should be \'empirical\', \'lasso\', \'shrunk\' or \'empirical_isotropy\'.")
+             raise ValueError("methods should be \'empirical\', \'lasso\', \'shrunk\', \'empirical_isotropy\' or \'singleindex\'.")
 
         sol_output = sol['x']
         testdata = d[start+window_size+1:,:]
 
         if inportfolio_thre != 0.0:
-            sol_norm_output = normalized_ratio(sol_output,thre=inportfolio_thre)
+            sol_norm_output = normalized_propotion(sol_output,thre=inportfolio_thre)
             test_retrun = np.dot(testdata,sol_norm_output)[0]
         else:
             test_retrun = np.dot(testdata,sol_output)[0]
@@ -576,10 +578,10 @@ def check_turnover(output_array,thre=0.01,num_return=True):
         input paramater
         ----------------------
         output_array : ndarray
-        ratio of portfolio which is output of quadratic programming.
+        propotion of portfolio which is output of quadratic programming.
         thre : float
-        If ratio of portfolio is over thre, the stock will be bought.
-        If ratio of portfolio is under thre, the stock will be sold.
+        If a propotion of portfolio is over thre, the stock will be bought.
+        If a propotion of portfolio is under thre, the stock will be sold.
         ---------------------
 
         returns
@@ -601,13 +603,13 @@ def check_turnover(output_array,thre=0.01,num_return=True):
     else:
         return turnover_array
 
-def normalized_ratio(ratio_vector,thre=0.01):
+def normalized_propotion(propotion_vector, thre=0.01):
     """
         input paramater
         ----------------------
-        ratio_vector : ndarray
+        propotion_vector : ndarray
             n*1 vector
-            ratio of portfolio which is output of quadratic programming.
+            propotion of portfolio which is output of quadratic programming.
         thre : float
             The thereshuld of portfolio.
             The stocks which is under thre will be 0 and another stocks
@@ -616,22 +618,22 @@ def normalized_ratio(ratio_vector,thre=0.01):
 
         returns
         ---------------------
-        ratio_vector_normalized : ndarray
+        propotion_vector_normalized : ndarray
         n*1 vector
         ---------------------
 
     """
-    if isinstance(ratio_vector, cvxopt.base.matrix) == True:
-        ratio_vector = np.array(ratio_vector).flatten()
-    input_vector = ratio_vector.copy() #input_vector[bool_vector] = 0.0 will change original vector so copy it.
+    if isinstance(propotion_vector, cvxopt.base.matrix) == True:
+        propotion_vector = np.array(propotion_vector).flatten()
+    input_vector = propotion_vector.copy() #input_vector[bool_vector] = 0.0 will change original vector so copy it.
     bool_vector = input_vector < thre
     input_vector[bool_vector] = 0.0
 
     if np.sum(input_vector) == 0:
-        ratio_vector_normalized = input_vector #avoiding nan
+        propotion_vector_normalized = input_vector #avoiding nan
     else:
-        ratio_vector_normalized = input_vector / np.sum(input_vector)
-    return ratio_vector_normalized
+        propotion_vector_normalized = input_vector / np.sum(input_vector)
+    return propotion_vector_normalized
 
 def check_abs_change_portfolio(output_array,vector_return_bool=False):
     """
@@ -639,7 +641,7 @@ def check_abs_change_portfolio(output_array,vector_return_bool=False):
         ----------------------
         output_array : ndarray
         n*p matrix (n is time and p is number of stocks)
-        ratio of portfolio which is output of quadratic programming.
+        propotion of portfolio which is output of quadratic programming.
 
         vector_return_bool : bool
         if vector_return_bool is True, then this function will return
@@ -742,14 +744,14 @@ def plot_abs_change(*dicts):
     abs_change_dic = {}
 
     for arg_i in np.arange(argnum):
-        abs_change_dic[dicts[arg_i]['methods']] = np.array([ check_abs_change_portfolio(normalized_ratio_array(dicts[arg_i]['sol_output_array'],thre=i)) for i in thre_range ])
+        abs_change_dic[dicts[arg_i]['methods']] = np.array([ check_abs_change_portfolio(normalized_propotion_array(dicts[arg_i]['sol_output_array'],thre=i)) for i in thre_range ])
 
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
     for arg_i in np.arange(argnum):
         ax1.plot(thre_range, abs_change_dic[dicts[arg_i]['methods']], label=dicts[arg_i]['methods'], color=plt.cm.jet(arg_i*0.4))
     plt.title("Abs values of change")
-    plt.xlabel("ratio of threshold")
+    plt.xlabel("propotion of threshold")
     plt.ylabel("sum of absolute value of change")
     plt.legend()
     fig.show()
@@ -758,8 +760,8 @@ def check_main_stock_in_portfolio(output_array,thre=0.01,):
     bool_array = output_array > thre
     return np.sum(bool_array,0)
 
-def normalized_ratio_array(output_array,thre=0.01):
-    output_norm = np.array([ normalized_ratio(output_array[i],thre=thre) for i in np.arange(output_array.shape[0]) ])
+def normalized_propotion_array(output_array,thre=0.01):
+    output_norm = np.array([ normalized_propotion(output_array[i],thre=thre) for i in np.arange(output_array.shape[0]) ])
     return output_norm
 
 def save_dic(dic, PATH):
@@ -813,6 +815,82 @@ def shrunk_param_optim(data):
         print(shrunk_optim_dict[str(i)]['risk'])
         #pf.plot_turnover(shrunk_optim_dict[str(i)])
         #pf.plot_abs_change(shrunk_optim_dict[str(i)])
+
+#single index model
+from sklearn import linear_model
+def make_market_portfolio_return(data):
+    """
+        input paramater
+        ----------------------
+        data : ndarray
+            (n * p) matrix
+        ---------------------
+        returns
+        ---------------------
+        market_return : ndarray
+            (n * 1) vector
+            This is return of market portfolio which has equal propotion.
+        ---------------------
+    """
+    equal_weight = np.ones(data.shape[1]) / data.shape[1]
+    market_return = np.array([np.dot(data,equal_weight)]).T
+    return market_return
+
+def make_single_index_diagonal_covariance_matrix(data):
+    """
+        input paramater
+        ----------------------
+        data : ndarray
+            (n * p) matrix
+        ---------------------
+        returns
+        ---------------------
+        S_single_index_diag : ndarray
+            (p * p) matrix
+            This is isolated covariance matrix estimated by single index model
+            so this is diagonal matrix.
+        ---------------------
+    """
+    S_single_index = make_single_index_covariance_matrix(data)
+    S_single_index_diag = np.diag(np.diag(S_single_index))
+    return S_single_index_diag
+
+def make_single_index_covariance_matrix(data):
+    """
+        input paramater
+        ----------------------
+        data : ndarray
+            (n * p) matrix
+        ---------------------
+        returns
+        ---------------------
+        S_single_index : ndarray
+            (p * p) matrix
+            This is covariance matrix estimated by single index model.
+        ---------------------
+    """
+    def make_single_index_beta_and_varresid(indiv_return,market_return):
+        try:
+            #If indiv_return.shape = (199,), then change it to (199, 1).
+            indiv_return.shape[1]
+        except IndexError: 
+            indiv_return = np.array([indiv_return]).T
+
+        model = linear_model.LinearRegression()
+        model.fit(market_return, indiv_return)
+        beta = model.coef_[0][0]
+        resid = indiv_return - model.predict(indiv_return)
+        var_resid = np.var(resid)
+
+        return beta,var_resid
+
+    market_return = make_market_portfolio_return(data)
+    var_market = np.var(market_return)
+    beta_vector = np.array([[ make_single_index_beta_and_varresid(data[:,i],market_return)[0] for i in np.arange(data.shape[1])]]).T
+    varresid_vector = np.array([ make_single_index_beta_and_varresid(data[:,i],market_return)[1] for i in np.arange(data.shape[1])])
+    S_single_index = np.dot(beta_vector,beta_vector.T) * var_market + np.diag(varresid_vector)
+    return S_single_index
+
 
 if __name__ == '__main__':
     data = np.loadtxt("/Users/kazeto/Desktop/GradThesis/nikkei/logdiffdata.csv",delimiter=",")
