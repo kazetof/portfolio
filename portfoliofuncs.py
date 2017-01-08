@@ -498,12 +498,14 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
 
     if methods == 'lasso' and using_sklearn_glasso == True:
         if shrunk_param == None:
-            model = cov.GraphLasso(alpha=0.01, mode='cd', tol=1e-3, assume_centered=False)
+            shrunk_param = 0.01
+            model = cov.GraphLasso(alpha=shrunk_param, mode='cd', tol=1e-3, assume_centered=False)
         else:
             model = cov.GraphLasso(alpha=shrunk_param, mode='cd', tol=1e-3, assume_centered=False)
     elif methods == 'shrunk':
         if shrunk_param == None:
-            model = cov.ShrunkCovariance(shrinkage=0.6, assume_centered=False)
+            shrunk_param = 0.6
+            model = cov.ShrunkCovariance(shrinkage=shrunk_param, assume_centered=False)
         else:
             model = cov.ShrunkCovariance(shrinkage=shrunk_param, assume_centered=False)
 
@@ -571,6 +573,8 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
     back_up_dict['methods'] = methods
     back_up_dict['d_window_mean'] = np.array(d_window_mean)
     back_up_dict['d_window_variance'] = np.array(d_window_variance)
+    if shrunk_param != None:
+        back_up_dict['shrunk_param'] = shrunk_param
 
     #back_up_dict['optimal_status'] = np.array(status_array)
     if 'unknown' in status_array:
@@ -684,7 +688,7 @@ def plot_test_return(*dicts):
         input paramater
         ----------------------
         dicts : variable length of dicts which is output of roling_portfolio function.
-        Here we assume all arguments of methods is different. 
+        Here we assume arguments of methods is different except for 'lasso'.
         
         Ex. plot_test_return(emp_roling_dict, lasso_roling_dict, shrunk_roling_dict)
         ---------------------
@@ -696,8 +700,12 @@ def plot_test_return(*dicts):
     argnum = len(dicts)
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    for i in np.arange(argnum):
-        ax.plot(dicts[i]['test_return_array'], 'b', label="return of {} Covariance".format(dicts[i]['methods']), color=plt.cm.jet(i*(1./argnum)))
+    for arg_i in np.arange(argnum):
+        if dicts[arg_i]['methods'] != 'lasso':
+            ax.plot(dicts[arg_i]['test_return_array'], 'b', label="return of {} Covariance".format(dicts[arg_i]['methods']), color=plt.cm.jet(arg_i*(1./argnum)))
+        else:
+            label = dicts[arg_i]['methods'] + "( lambda : " + str(dicts[arg_i]['shrunk_param']) + " )"
+            ax.plot(dicts[arg_i]['test_return_array'], 'b', label="return of {} Covariance".format(label), color=plt.cm.jet(arg_i*(1./argnum)))
     plt.title("Comparison of Retrun")
     ax.legend(loc = 'upper center',bbox_to_anchor=(0.5,-0.25))
     plt.subplots_adjust(bottom=0.4)
@@ -710,7 +718,7 @@ def plot_turnover(*dicts):
         input paramater
         ----------------------
         dicts : variable length of dicts which is output of roling_portfolio function.
-        Here we assume all arguments of methods is different. 
+        Here we assume arguments of methods is different except for 'lasso'.
 
         Ex. turnover_plot(emp_roling_dict, lasso_roling_dict, shrunk_roling_dict)
         ---------------------
@@ -722,32 +730,25 @@ def plot_turnover(*dicts):
     argnum = len(dicts)
     range_list = np.arange(0.01,0.5,0.01)
     turnover_dic = {}
+    label_list = []
     for arg_i in np.arange(argnum):
-        turnover_dic[dicts[arg_i]['methods']] = np.array([ check_turnover(dicts[arg_i]['sol_output_array'],thre=i,num_return=True) for i in range_list ])
+        if dicts[arg_i]['methods'] != 'lasso':
+            label = dicts[arg_i]['methods']
+            label_list.append(label)
+            turnover_dic[dicts[arg_i]['methods']] = np.array([ check_turnover(dicts[arg_i]['sol_output_array'],thre=i,num_return=True) for i in range_list ])
+        else:
+            label = dicts[arg_i]['methods'] + str(dicts[arg_i]['shrunk_param'])
+            label_list.append(label) #.kyes() is OK but in order to align in order, we have to make label_list.
+            turnover_dic[label] = np.array([ check_turnover(dicts[arg_i]['sol_output_array'],thre=i,num_return=True) for i in range_list ])
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
     for arg_i in np.arange(argnum):
-        ax.plot(range_list,turnover_dic[dicts[arg_i]['methods']], label=dicts[arg_i]['methods'], color=plt.cm.jet(arg_i*(1./argnum)))
+        ax.plot(range_list,turnover_dic[label_list[arg_i]], label=label_list[arg_i], color=plt.cm.jet(arg_i*(1./argnum)))
     ax.legend()
     plt.xlabel("threshould of portfolio")
     plt.ylabel("number of turnover")
     plt.title("number of turnover")
-    fig.show()
-
-def plot_stock_num(thre=0.01,*dicts):
-    argnum = len(dicts)
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    for arg_i in np.arange(argnum):
-        num_vector = check_stock_num_in_portfolio(dicts[arg_i],thre=thre)
-        ax.plot(np.arange(len(num_vector)), num_vector, label=dicts[arg_i]['methods'], color=plt.cm.jet(arg_i*(1./argnum)))
-    #ax.legend()
-    ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
-    plt.xlabel("time")
-    plt.subplots_adjust(right=0.6)
-    plt.ylabel("number of stocks")
-    plt.title("number of stocks in portfolio")
     fig.show()
 
 
@@ -756,7 +757,7 @@ def plot_abs_change(*dicts):
         input paramater
         ----------------------
         dicts : variable length of dicts which is output of roling_portfolio function.
-        Here we assume all arguments of methods is different. 
+        Here we assume arguments of methods is different except for 'lasso'.
 
         Ex. plot_abs_change(emp_roling_dict, lasso_roling_dict, shrunk_roling_dict)
         ---------------------
@@ -767,20 +768,72 @@ def plot_abs_change(*dicts):
     """
     argnum = len(dicts)
     thre_range = np.arange(0.01,0.8,0.025)
-    abs_change_dic = {}
-
+    
+        #make label list for legend
+    label_list = []
     for arg_i in np.arange(argnum):
-        abs_change_dic[dicts[arg_i]['methods']] = np.array([ check_abs_change_portfolio(normalized_propotion_array(dicts[arg_i]['sol_output_array'],thre=i)) for i in thre_range ])
+        if dicts[arg_i]['methods'] != 'lasso':
+            label = dicts[arg_i]['methods']
+            label_list.append(label)
+        else:
+            label = dicts[arg_i]['methods'] + str(dicts[arg_i]['shrunk_param'])
+            label_list.append(label)
+
+    abs_change_dic = {}
+    for arg_i in np.arange(argnum):
+        abs_change_dic[label_list[arg_i]] = np.array([ check_abs_change_portfolio(normalized_propotion_array(dicts[arg_i]['sol_output_array'],thre=i)) for i in thre_range ])
 
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
     for arg_i in np.arange(argnum):
-        ax1.plot(thre_range, abs_change_dic[dicts[arg_i]['methods']], label=dicts[arg_i]['methods'], color=plt.cm.jet(arg_i*(1./argnum)))
+        ax1.plot(thre_range, abs_change_dic[label_list[arg_i]], label=label_list[arg_i], color=plt.cm.jet(arg_i*(1./argnum)))
     plt.title("Abs values of change")
     plt.xlabel("propotion of threshold")
     plt.ylabel("sum of absolute value of change")
     plt.legend()
     fig.show()
+
+
+def plot_stock_num(thre=0.01,*dicts):
+    """
+        input paramater
+        ----------------------
+        thre : float
+            threshold of portfolio propotion.
+        dicts : variable length of dicts which is output of roling_portfolio function.
+            Here we assume arguments of methods is different except for 'lasso'.
+
+        Ex. plot_stock_num(0.01, emp_roling_dict, lasso_roling_dict, shrunk_roling_dict)
+        ---------------------
+        returns
+        ---------------------
+        None
+        ---------------------
+    """
+    argnum = len(dicts)
+
+    #make label list for legend
+    label_list = []
+    for arg_i in np.arange(argnum):
+        if dicts[arg_i]['methods'] != 'lasso':
+            label = dicts[arg_i]['methods']
+            label_list.append(label)
+        else:
+            label = dicts[arg_i]['methods'] + str(dicts[arg_i]['shrunk_param'])
+            label_list.append(label)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    for arg_i in np.arange(argnum):
+        num_vector = check_stock_num_in_portfolio(dicts[arg_i],thre=thre)
+        ax.plot(np.arange(len(num_vector)), num_vector, label=label_list[arg_i], color=plt.cm.jet(arg_i*(1./argnum)))
+    ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
+    plt.xlabel("time")
+    plt.subplots_adjust(right=0.6)
+    plt.ylabel("number of stocks")
+    plt.title("number of stocks in portfolio")
+    fig.show()
+
 
 def check_main_stock_in_portfolio(output_dict,thre=0.01):
     """
@@ -838,7 +891,6 @@ def evaluation(output_dict):
     print("mthod is {}".format(output_dict['methods']))
     print("Expected Test Return : {}".format(output_dict['expected_return']))
     print("Risk : {}".format(output_dict['risk']))
-
 
 
 #single index model
@@ -993,6 +1045,11 @@ def plot_lasso_param_optim_risk(lasso_optim_dict, lasso_param_range):
     plt.ylabel('Risk')
     plt.title('Risk (variance of test return)')
 
+def min_risk_lambda(lasso_optim_dict, lasso_param_range):
+    risk = np.array([ lasso_optim_dict[str(i)]['risk'] for i in lasso_param_range ])
+    np.where(risk == np.min(risk))
+    min_lambda = lasso_param_range[np.where(risk == np.min(risk))[0][0]]
+    return min_lambda
 
 def plot_cov_glasso_each_alpha(data):
     for i in np.arange(0.0005,0.01,0.001):
