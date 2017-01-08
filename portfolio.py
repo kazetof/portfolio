@@ -12,13 +12,13 @@ emp_roling_dict = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
 										methods='empirical',inportfolio_thre=inportfolio_thre)
 iso_roling_dict = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
 										methods='empirical_isotropy',inportfolio_thre=inportfolio_thre)
-lasso_roling_dict = pf.roling_portfolio(data,r0=r0,window_size=window_size,methods='lasso',rho=0.4,\
-                       		           inportfolio_thre=inportfolio_thre,using_sklearn_glasso=True)
+lasso_roling_dict = pf.roling_portfolio(data,r0=r0,window_size=window_size,methods='lasso',\
+                       		           inportfolio_thre=inportfolio_thre,using_sklearn_glasso=True,\
+                       		           shrunk_param=0.01)
 shrunk_roling_dict = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
 										methods='shrunk',inportfolio_thre=inportfolio_thre)
 sindex_roling_dict = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
 										methods='singleindex',inportfolio_thre=inportfolio_thre)
-
 
 pf.evaluation(emp_roling_dict)
 pf.evaluation(iso_roling_dict)
@@ -42,6 +42,18 @@ precision = model.get_precision()
 S = np.linalg.inv(precision)
 pf.heatmap(np.cov(data.T))
 pf.heatmap(S)
+
+def plot_cov_glasso_each_alpha(data):
+	for i in np.arange(0.0005,0.01,0.001):
+		model = cov.GraphLasso(alpha=i, mode='cd', tol=1e-3, assume_centered=False)
+		model.fit(data)
+		S = model.covariance_
+		heatmap(S, title="Heat map of Covariance matrix : shrink param = {}".format(str(i)))
+
+rho = 0.1
+lam_rho_ratio=0.09
+S = np.cov(data.T,ddof=1)
+W = pf.cov_lasso_optim(S=S,N=data.shape[0],M=data.shape[1],rho=rho,lam_rho_ratio=lam_rho_ratio)
 
 ##single index
 #market portfolio

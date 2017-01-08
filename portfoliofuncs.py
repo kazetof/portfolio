@@ -312,7 +312,7 @@ def heatmap(matrix,title=None):
     """
     x = np.arange(matrix.shape[0])
     y = np.arange(matrix.shape[1])
-    X,Y = np.meshgrid(x,y)
+    X,Y = np.meshgrid(x[::-1],y)
     fig, ax = plt.subplots()
     ax.pcolor(X,Y,matrix)
     plt.title(title)
@@ -398,7 +398,7 @@ def mean_variance_model_optim(data,r=None,S=None,r0=0.01):
     sol = solvers.qp(P,q,G,h,A,b)
     x = sol['x']
     #print("propotion of portfolio : {}".format(x))
-    print("portfolio return os {}".format(np.sum(cvxopt.mul(x,cvxopt.matrix(r)))))
+    print("portfolio return is {}".format(np.sum(cvxopt.mul(x,cvxopt.matrix(r)))))
     print("sum of propotion x is {}".format(np.sum(x)))
     return sol,x
 
@@ -461,7 +461,8 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
         window_size : integer
             the range of window which caluculate propotion of portfolio.
         methods : string 
-            methods should be 'empirical', 'lasso', 'shrunk', 'empirical_isotropy' or 'singleindex'.
+            methods should be 'empirical', 'lasso', 'shrunk',
+             'empirical_isotropy' or 'singleindex'.
         rho : float
             It must be in [0,1]
             adding value to diagonal element in coordinate descent algorithm.
@@ -496,7 +497,10 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
     cvxopt.matrix_repr = printing.matrix_str_default #for dealing cvxopt matrix as np_matrix.
 
     if methods == 'lasso' and using_sklearn_glasso == True:
-        model = cov.GraphLasso(alpha=0.01,mode='cd',tol=1e-3)
+        if shrunk_param == None:
+            model = cov.GraphLasso(alpha=0.01, mode='cd', tol=1e-3, assume_centered=False)
+        else:
+            model = cov.GraphLasso(alpha=shrunk_param, mode='cd', tol=1e-3, assume_centered=False)
     elif methods == 'shrunk':
         if shrunk_param == None:
             model = cov.ShrunkCovariance(shrinkage=0.6, assume_centered=False)
@@ -738,8 +742,10 @@ def plot_stock_num(thre=0.01,*dicts):
     for arg_i in np.arange(argnum):
         num_vector = check_stock_num_in_portfolio(dicts[arg_i],thre=thre)
         ax.plot(np.arange(len(num_vector)), num_vector, label=dicts[arg_i]['methods'], color=plt.cm.jet(arg_i*(1./argnum)))
-    ax.legend()
+    #ax.legend()
+    ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
     plt.xlabel("time")
+    plt.subplots_adjust(right=0.6)
     plt.ylabel("number of stocks")
     plt.title("number of stocks in portfolio")
     fig.show()
@@ -833,18 +839,7 @@ def evaluation(output_dict):
     print("Expected Test Return : {}".format(output_dict['expected_return']))
     print("Risk : {}".format(output_dict['risk']))
 
-def shrunk_param_optim(data):
-    shrunk_param_range = np.arange(0.1,1,0.1)
-    shrunk_optim_dict = {}
-    for i in shrunk_param_range:
-        shrunk_optim_dict[str(i)] = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
-                                        methods='shrunk',inportfolio_thre=inportfolio_thre, shrunk_param=i)
-    for i in shrunk_param_range:
-        print(i)
-        print(shrunk_optim_dict[str(i)]['expected_return'])
-        print(shrunk_optim_dict[str(i)]['risk'])
-        #pf.plot_turnover(shrunk_optim_dict[str(i)])
-        #pf.plot_abs_change(shrunk_optim_dict[str(i)])
+
 
 #single index model
 from sklearn import linear_model
@@ -921,6 +916,39 @@ def make_single_index_covariance_matrix(data):
     S_single_index = np.dot(beta_vector,beta_vector.T) * var_market + np.diag(varresid_vector)
     return S_single_index
 
+def plot_cov_glasso_each_alpha(data):
+    for i in np.arange(0.0005,0.01,0.001):
+        model = cov.GraphLasso(alpha=i, mode='cd', tol=1e-3, assume_centered=False)
+        model.fit(data)
+        S = model.covariance_
+        heatmap(S, title="Heat map of Covariance matrix : shrink param = {}".format(str(i)))
+
+def shrunk_param_optim(data):
+    shrunk_param_range = np.arange(0.1,1,0.1)
+    shrunk_optim_dict = {}
+    for i in shrunk_param_range:
+        shrunk_optim_dict[str(i)] = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
+                                        methods='shrunk',inportfolio_thre=inportfolio_thre, shrunk_param=i)
+    for i in shrunk_param_range:
+        print(i)
+        print(shrunk_optim_dict[str(i)]['expected_return'])
+        print(shrunk_optim_dict[str(i)]['risk'])
+        #pf.plot_turnover(shrunk_optim_dict[str(i)])
+        #pf.plot_abs_change(shrunk_optim_dict[str(i)])
+
+def lasso_param_optim(data):
+    lasso_param_range = np.arange(0.0005,0.01,0.001)
+    lasso_optim_dict = {}
+    for i in lasso_param_range:
+        lasso_optim_dict[str(i)] = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
+                                        methods='lasso',using_sklearn_glasso=True,\
+                                        inportfolio_thre=inportfolio_thre, shrunk_param=i)
+    for i in shrunk_param_range:
+        print(i)
+        print(lasso_optim_dict[str(i)]['expected_return'])
+        print(lasso_optim_dict[str(i)]['risk'])
+        #pf.plot_turnover(shrunk_optim_dict[str(i)])
+        #pf.plot_abs_change(shrunk_optim_dict[str(i)])
 
 if __name__ == '__main__':
     data = np.loadtxt("/Users/kazeto/Desktop/GradThesis/nikkei/logdiffdata.csv",delimiter=",")
