@@ -20,6 +20,7 @@ shrunk_roling_dict = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
 sindex_roling_dict = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
 										methods='singleindex',inportfolio_thre=inportfolio_thre)
 
+
 pf.evaluation(emp_roling_dict)
 pf.evaluation(iso_roling_dict)
 pf.evaluation(lasso_roling_dict)
@@ -34,6 +35,9 @@ pf.plot_stock_num(inportfolio_thre, emp_roling_dict, iso_roling_dict, lasso_roli
 plt.plot(emp_roling_dict['d_window_mean'])
 plt.plot(emp_roling_dict['d_window_variance'])
 
+lasso_optim_dict, lasso_param_range = pf.lasso_param_optim(data)
+pf.save_dic(lasso_optim_dict, "/Users/kazeto/Desktop/GradThesis/nikkei/output/lasso_optim_dict.pkl")
+
 #####
 import sklearn.covariance as cov
 model = cov.LedoitWolf(assume_centered=False)
@@ -43,12 +47,6 @@ S = np.linalg.inv(precision)
 pf.heatmap(np.cov(data.T))
 pf.heatmap(S)
 
-def plot_cov_glasso_each_alpha(data):
-	for i in np.arange(0.0005,0.01,0.001):
-		model = cov.GraphLasso(alpha=i, mode='cd', tol=1e-3, assume_centered=False)
-		model.fit(data)
-		S = model.covariance_
-		heatmap(S, title="Heat map of Covariance matrix : shrink param = {}".format(str(i)))
 
 rho = 0.1
 lam_rho_ratio=0.09

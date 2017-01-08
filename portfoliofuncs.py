@@ -924,6 +924,9 @@ def plot_cov_glasso_each_alpha(data):
         heatmap(S, title="Heat map of Covariance matrix : shrink param = {}".format(str(i)))
 
 def shrunk_param_optim(data):
+    r0 = 0.01
+    window_size = 110
+    inportfolio_thre = 0.01
     shrunk_param_range = np.arange(0.1,1,0.1)
     shrunk_optim_dict = {}
     for i in shrunk_param_range:
@@ -936,19 +939,68 @@ def shrunk_param_optim(data):
         #pf.plot_turnover(shrunk_optim_dict[str(i)])
         #pf.plot_abs_change(shrunk_optim_dict[str(i)])
 
+import time
 def lasso_param_optim(data):
-    lasso_param_range = np.arange(0.0005,0.01,0.001)
+    #measure the caluculation time 
+    start_time = time.time()
+
+    #define params
+    r0 = 0.01
+    window_size = 110
+    inportfolio_thre = 0.01
+    lasso_param_range = np.arange(0.0005,0.01,0.0002)
+    print("length of range is {}".format(len(lasso_param_range)))
     lasso_optim_dict = {}
+    step = 1
+
     for i in lasso_param_range:
-        lasso_optim_dict[str(i)] = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
+        print("------ lambda : {} ------".format(i))
+        each_start_time = time.time()
+        lasso_optim_dict[str(i)] = roling_portfolio(data,r0=r0,window_size=window_size,\
                                         methods='lasso',using_sklearn_glasso=True,\
                                         inportfolio_thre=inportfolio_thre, shrunk_param=i)
-    for i in shrunk_param_range:
+
+        #print each step time
+        each_elapsed_time = time.time() - each_start_time
+        print("{} step of elapsed time : {}".format(step, each_elapsed_time)) + " sec"
+        step += 1
+
+    all_elapsed_time = time.time() - start_time
+    print("all of elapsed time : {}".format(all_elapsed_time)) + " sec"
+
+    for i in lasso_param_range:
         print(i)
         print(lasso_optim_dict[str(i)]['expected_return'])
         print(lasso_optim_dict[str(i)]['risk'])
-        #pf.plot_turnover(shrunk_optim_dict[str(i)])
-        #pf.plot_abs_change(shrunk_optim_dict[str(i)])
+
+    return lasso_optim_dict, lasso_param_range
+
+def plot_lasso_param_optim_return(lasso_optim_dict, lasso_param_range):
+    r = np.array([ lasso_optim_dict[str(i)]['expected_return'] for i in lasso_param_range ])
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(lasso_param_range,r)
+    plt.xlabel('lambda')
+    plt.ylabel('Expected Return')
+    plt.title('Return')
+
+def plot_lasso_param_optim_risk(lasso_optim_dict, lasso_param_range):
+    risk = np.array([ lasso_optim_dict[str(i)]['risk'] for i in lasso_param_range ])
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(lasso_param_range,risk)
+    plt.xlabel('lambda')
+    plt.ylabel('Risk')
+    plt.title('Risk (variance of test return)')
+
+
+def plot_cov_glasso_each_alpha(data):
+    for i in np.arange(0.0005,0.01,0.001):
+        model = cov.GraphLasso(alpha=i, mode='cd', tol=1e-3, assume_centered=False)
+        model.fit(data)
+        S = model.covariance_
+        heatmap(S, title="Heat map of Covariance matrix : shrink param = {}".format(str(i)))
+
 
 if __name__ == '__main__':
     data = np.loadtxt("/Users/kazeto/Desktop/GradThesis/nikkei/logdiffdata.csv",delimiter=",")
