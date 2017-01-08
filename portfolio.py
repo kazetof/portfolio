@@ -10,8 +10,8 @@ inportfolio_thre = 0.01
 
 emp_roling_dict = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
 										methods='empirical',inportfolio_thre=inportfolio_thre)
-iso_roling_dict = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
-										methods='empirical_isotropy',inportfolio_thre=inportfolio_thre)
+emp_diag_roling_dict = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
+										methods='empirical_diag',inportfolio_thre=inportfolio_thre)
 lasso_roling_dict = pf.roling_portfolio(data,r0=r0,window_size=window_size,methods='lasso',\
                        		           inportfolio_thre=inportfolio_thre,using_sklearn_glasso=True,\
                        		           shrunk_param=0.01)
@@ -24,16 +24,16 @@ sindex_roling_dict = pf.roling_portfolio(data,r0=r0,window_size=window_size,\
 										methods='singleindex',inportfolio_thre=inportfolio_thre)
 
 pf.evaluation(emp_roling_dict)
-pf.evaluation(iso_roling_dict)
+pf.evaluation(emp_diag_roling_dict)
 pf.evaluation(lasso_roling_dict)
 pf.evaluation(lasso_optim_roling_dict)
 pf.evaluation(shrunk_roling_dict)
 pf.evaluation(sindex_roling_dict)
 
-pf.plot_test_return(emp_roling_dict, lasso_optim_roling_dict, iso_roling_dict)
-pf.plot_turnover(emp_roling_dict, lasso_optim_roling_dict, iso_roling_dict)
-pf.plot_abs_change(emp_roling_dict, lasso_optim_roling_dict, iso_roling_dict)
-pf.plot_stock_num(0.01, emp_roling_dict, lasso_optim_roling_dict, iso_roling_dict)
+pf.plot_test_return(emp_roling_dict, lasso_optim_roling_dict, emp_diag_roling_dict)
+pf.plot_turnover(emp_roling_dict, lasso_optim_roling_dict, emp_diag_roling_dict)
+pf.plot_abs_change(emp_roling_dict, lasso_optim_roling_dict, emp_diag_roling_dict)
+pf.plot_stock_num(0.01, emp_roling_dict, lasso_optim_roling_dict, emp_diag_roling_dict)
 
 plt.plot(emp_roling_dict['d_window_mean'])
 plt.plot(emp_roling_dict['d_window_variance'])

@@ -462,7 +462,7 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
             the range of window which caluculate propotion of portfolio.
         methods : string 
             methods should be 'empirical', 'lasso', 'shrunk',
-             'empirical_isotropy' or 'singleindex'.
+             'empirical_diag' or 'singleindex'.
         rho : float
             It must be in [0,1]
             adding value to diagonal element in coordinate descent algorithm.
@@ -526,12 +526,12 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
         elif methods == 'shrunk':
             model.fit(d_window)
             W_window = np.linalg.inv(model.get_precision())
-        elif methods == 'empirical_isotropy':
+        elif methods == 'empirical_diag':
             W_window = np.diag(np.diag(np.cov(d_window.T)))
         elif methods == 'singleindex':
             W_window = make_single_index_covariance_matrix(d_window)
         else:
-            raise ValueError("methods should be \'empirical\', \'lasso\', \'shrunk\', \'empirical_isotropy\' or \'singleindex\'.")
+            raise ValueError("methods should be \'empirical\', \'lasso\', \'shrunk\', \'empirical_diag\' or \'singleindex\'.")
 
         sol, r = mean_variance_model_optim(d_window, S=W_window, r0=r0)
         sol_output = sol['x']
@@ -924,7 +924,7 @@ def make_single_index_diagonal_covariance_matrix(data):
         ---------------------
         S_single_index_diag : ndarray
             (p * p) matrix
-            This is isolated covariance matrix estimated by single index model
+            This is diagonal covariance matrix estimated by single index model
             so this is diagonal matrix.
         ---------------------
     """
