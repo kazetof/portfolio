@@ -29,8 +29,10 @@ pf.evaluation(sindex_roling_dict)
 pf.plot_test_return(emp_roling_dict, iso_roling_dict, lasso_roling_dict, shrunk_roling_dict, sindex_roling_dict)
 pf.plot_turnover(emp_roling_dict, iso_roling_dict, lasso_roling_dict, shrunk_roling_dict, sindex_roling_dict)
 pf.plot_abs_change(emp_roling_dict, iso_roling_dict, lasso_roling_dict, shrunk_roling_dict, sindex_roling_dict)
+pf.plot_stock_num(inportfolio_thre, emp_roling_dict, iso_roling_dict, lasso_roling_dict, shrunk_roling_dict, sindex_roling_dict)
 
-
+plt.plot(emp_roling_dict['d_window_mean'])
+plt.plot(emp_roling_dict['d_window_variance'])
 
 #####
 import sklearn.covariance as cov

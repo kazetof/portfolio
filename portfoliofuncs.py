@@ -490,6 +490,8 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
     test_retrun_array = []
     sol_output_array = []
     status_array = []
+    d_window_mean = []
+    d_window_variance = []
 
     cvxopt.matrix_repr = printing.matrix_str_default #for dealing cvxopt matrix as np_matrix.
 
@@ -536,11 +538,13 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
             test_retrun = np.dot(testdata,sol_output)[0]
 
         test_retrun_array.append(test_retrun)
-
         status_array.append(sol['status'])
 
         sol_output_vector = np.asarray(sol_output).flatten()
         sol_output_array.append(np.array(sol_output_vector))
+
+        d_window_mean.append(np.mean(d_window))
+        d_window_variance.append(np.var(d_window))
 
         print("N,M : {}, {}".format(N_window,M_window))
         print("Optimal Solution : {}".format(sol['status']))
@@ -551,7 +555,6 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
     back_up_dict['expected_return'] = np.mean(test_retrun_array)
     back_up_dict['risk'] = np.std(test_retrun_array)
     back_up_dict['sol_output_array'] = np.array(sol_output_array)
-    back_up_dict['status_array'] = np.array(status_array)
     if methods == 'lasso':
         back_up_dict['rho'] = rho
     if methods == 'lasso' and using_sklearn_glasso == True:
@@ -562,11 +565,16 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
     back_up_dict['r0'] = r0
     back_up_dict['data_dimension'] = d.shape[1]
     back_up_dict['methods'] = methods
+    back_up_dict['d_window_mean'] = np.array(d_window_mean)
+    back_up_dict['d_window_variance'] = np.array(d_window_variance)
 
+    #back_up_dict['optimal_status'] = np.array(status_array)
     if 'unknown' in status_array:
         raise Warning("!!!!!!!!Optimal solution was not found!!!!!!!!!")
+        back_up_dict['optimal_status'] = 'not optimal'
     else:
         print("Optimal solution was found in all steps!")
+        back_up_dict['optimal_status'] = 'optimal'
 
     return back_up_dict
 
@@ -685,7 +693,7 @@ def plot_test_return(*dicts):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     for i in np.arange(argnum):
-        ax.plot(dicts[i]['test_return_array'], 'b', label="return of {} Covariance".format(dicts[i]['methods']), color=plt.cm.jet(i*0.4))
+        ax.plot(dicts[i]['test_return_array'], 'b', label="return of {} Covariance".format(dicts[i]['methods']), color=plt.cm.jet(i*(1./argnum)))
     plt.title("Comparison of Retrun")
     ax.legend(loc = 'upper center',bbox_to_anchor=(0.5,-0.25))
     plt.subplots_adjust(bottom=0.4)
@@ -716,12 +724,26 @@ def plot_turnover(*dicts):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     for arg_i in np.arange(argnum):
-        ax.plot(range_list,turnover_dic[dicts[arg_i]['methods']], label=dicts[arg_i]['methods'], color=plt.cm.jet(arg_i*0.4))
+        ax.plot(range_list,turnover_dic[dicts[arg_i]['methods']], label=dicts[arg_i]['methods'], color=plt.cm.jet(arg_i*(1./argnum)))
     ax.legend()
     plt.xlabel("threshould of portfolio")
     plt.ylabel("number of turnover")
     plt.title("number of turnover")
     fig.show()
+
+def plot_stock_num(thre=0.01,*dicts):
+    argnum = len(dicts)
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    for arg_i in np.arange(argnum):
+        num_vector = check_stock_num_in_portfolio(dicts[arg_i],thre=thre)
+        ax.plot(np.arange(len(num_vector)), num_vector, label=dicts[arg_i]['methods'], color=plt.cm.jet(arg_i*(1./argnum)))
+    ax.legend()
+    plt.xlabel("time")
+    plt.ylabel("number of stocks")
+    plt.title("number of stocks in portfolio")
+    fig.show()
+
 
 def plot_abs_change(*dicts):
     """
@@ -747,16 +769,26 @@ def plot_abs_change(*dicts):
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
     for arg_i in np.arange(argnum):
-        ax1.plot(thre_range, abs_change_dic[dicts[arg_i]['methods']], label=dicts[arg_i]['methods'], color=plt.cm.jet(arg_i*0.4))
+        ax1.plot(thre_range, abs_change_dic[dicts[arg_i]['methods']], label=dicts[arg_i]['methods'], color=plt.cm.jet(arg_i*(1./argnum)))
     plt.title("Abs values of change")
     plt.xlabel("propotion of threshold")
     plt.ylabel("sum of absolute value of change")
     plt.legend()
     fig.show()
 
-def check_main_stock_in_portfolio(output_array,thre=0.01,):
-    bool_array = output_array > thre
+def check_main_stock_in_portfolio(output_dict,thre=0.01):
+    """
+    This function returns how many times the stock will in portfolio for each stock.
+    """
+    bool_array = output_dict['sol_output_array'] > thre
     return np.sum(bool_array,0)
+
+def check_stock_num_in_portfolio(output_dict,thre=0.01):
+    """
+    This function returns how many stocks the portfolio contains for each time.
+    """
+    bool_array = output_dict['sol_output_array'] > thre
+    return np.sum(bool_array,1)
 
 def normalized_propotion_array(output_array,thre=0.01):
     output_norm = np.array([ normalized_propotion(output_array[i],thre=thre) for i in np.arange(output_array.shape[0]) ])
