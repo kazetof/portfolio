@@ -2,7 +2,7 @@
 import portfoliofuncs as pf
 import numpy as np
 
-data = np.loadtxt("/Users/kazeto/Desktop/GradThesis/nikkei/logdiffdata.csv",delimiter=",")
+data = np.loadtxt("./logdiffdata.csv",delimiter=",")
 
 window_size = 110
 r0=0.01

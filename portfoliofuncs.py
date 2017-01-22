@@ -1267,7 +1267,7 @@ def efficient_frontier(data, m, covmat):
 
 
 if __name__ == '__main__':
-    data = np.loadtxt("/Users/kazeto/Desktop/GradThesis/nikkei/logdiffdata.csv",delimiter=",")
+    data = np.loadtxt("./logdiffdata.csv",delimiter=",")
     emp_roling_dict = roling_portfolio(data,r0=0.01,window_size=110,methods='empirical',inportfolio_thre=0.01)
     lasso_roling_dict = roling_portfolio(data,r0=0.01,window_size=110,methods='lasso',rho=0.4,\
                                             inportfolio_thre=0.01,using_sklearn_glasso=True)
