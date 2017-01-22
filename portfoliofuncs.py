@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import numpy as np
+import pandas as pd
 from scipy.stats import norm
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -491,8 +492,8 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
     test_retrun_array = []
     sol_output_array = []
     status_array = []
-    d_window_mean = []
-    d_window_variance = []
+    #d_window_mean = []
+    #d_window_variance = []
 
     cvxopt.matrix_repr = printing.matrix_str_default #for dealing cvxopt matrix as np_matrix.
 
@@ -549,8 +550,8 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
         sol_output_vector = np.asarray(sol_output).flatten()
         sol_output_array.append(np.array(sol_output_vector))
 
-        d_window_mean.append(np.mean(d_window))
-        d_window_variance.append(np.var(d_window))
+        #d_window_mean.append(np.mean(d_window))
+        #d_window_variance.append(np.var(d_window))
 
         print("N,M : {}, {}".format(N_window,M_window))
         print("Optimal Solution : {}".format(sol['status']))
@@ -571,8 +572,8 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
     back_up_dict['r0'] = r0
     back_up_dict['data_dimension'] = d.shape[1]
     back_up_dict['methods'] = methods
-    back_up_dict['d_window_mean'] = np.array(d_window_mean)
-    back_up_dict['d_window_variance'] = np.array(d_window_variance)
+    #back_up_dict['d_window_mean'] = np.array(d_window_mean)
+    #back_up_dict['d_window_variance'] = np.array(d_window_variance)
     if shrunk_param != None:
         back_up_dict['shrunk_param'] = shrunk_param
 
@@ -583,6 +584,36 @@ def roling_portfolio(d,r0=0.01, window_size=100, methods='lasso', rho=0.4,lam_rh
     else:
         print("Optimal solution was found in all steps!")
         back_up_dict['optimal_status'] = 'optimal'
+
+    return back_up_dict
+
+def equal_rolling_portfolio(data, window_size=110):
+    """
+        input paramater
+        ----------------------
+        data : ndarray
+            (n*p) matrix
+        window_size : int
+           the range of window which caluculate propotion of portfolio.
+        ---------------------
+
+        returns
+        ---------------------
+        back_up_dict : dictionary
+            the same as rolling_portfolio.
+        ---------------------
+
+    """
+    back_up_dict = {}
+
+    return_vec = make_market_portfolio_return(data)
+    test_return = return_vec[window_size:data.shape[0]-1].flatten()
+    back_up_dict['window_size'] = window_size
+    back_up_dict['test_return_array'] = test_return
+    back_up_dict['expected_return'] = np.mean(test_return)
+    back_up_dict['risk'] = np.std(test_return)
+    back_up_dict['data_dimension'] = data.shape[1]
+    back_up_dict['methods'] = 'equal'
 
     return back_up_dict
 
@@ -728,7 +759,7 @@ def plot_turnover(*dicts):
         ---------------------
     """
     argnum = len(dicts)
-    range_list = np.arange(0.01,0.5,0.01)
+    range_list = np.arange(0.01,0.1,0.005)
     turnover_dic = {}
     label_list = []
     for arg_i in np.arange(argnum):
@@ -767,7 +798,7 @@ def plot_abs_change(*dicts):
         ---------------------
     """
     argnum = len(dicts)
-    thre_range = np.arange(0.01,0.8,0.025)
+    thre_range = np.arange(0.01,0.05,0.0025)
     
         #make label list for legend
     label_list = []
@@ -790,7 +821,7 @@ def plot_abs_change(*dicts):
     plt.title("Abs values of change")
     plt.xlabel("propotion of threshold")
     plt.ylabel("sum of absolute value of change")
-    plt.legend()
+    plt.legend(loc="upper left")
     fig.show()
 
 
@@ -909,9 +940,20 @@ def make_market_portfolio_return(data):
             This is return of market portfolio which has equal propotion.
         ---------------------
     """
-    equal_weight = np.ones(data.shape[1]) / data.shape[1]
-    market_return = np.array([np.dot(data,equal_weight)]).T
-    return market_return
+    try:
+    #If data.shape = (n,), then change it to (n, 1).
+        data.shape[1]
+    except IndexError: 
+        data = np.copy(np.array([data]).T)
+
+    if data.shape[1] == 1:
+        equal_weight = np.array([np.ones(data.shape[0]) / data.shape[0]]).T
+        market_return = np.array([np.dot(data.T,equal_weight)]).T
+        return market_return[0][0][0]
+    else:
+        equal_weight = np.ones(data.shape[1]) / data.shape[1]
+        market_return = np.array([np.dot(data,equal_weight)]).T
+        return market_return
 
 def make_single_index_diagonal_covariance_matrix(data):
     """
@@ -968,7 +1010,20 @@ def make_single_index_covariance_matrix(data):
     S_single_index = np.dot(beta_vector,beta_vector.T) * var_market + np.diag(varresid_vector)
     return S_single_index
 
-def plot_cov_glasso_each_alpha(data):
+def plot_cov_glasso_each_lambda(data):
+    """
+        input paramater
+        ----------------------
+        data : ndarray
+            (n * p) matrix
+        ---------------------
+        returns
+        ---------------------
+        None 
+            This will plot heat map of covariance matrix estimated by glasso in some graphs.
+        ---------------------
+
+    """
     for i in np.arange(0.0005,0.01,0.001):
         model = cov.GraphLasso(alpha=i, mode='cd', tol=1e-3, assume_centered=False)
         model.fit(data)
@@ -993,6 +1048,21 @@ def shrunk_param_optim(data):
 
 import time
 def lasso_param_optim(data):
+    """
+        input paramater
+        ----------------------
+        data : ndarray
+            (n * p) matrix
+        ---------------------
+        returns
+        ---------------------
+        lasso_optim_dict : dict
+            This is the dictionary which has dictionaries of 
+            roling_portfolio function output at some values of lambda.
+        lasso_param_range : ndarray
+            The range array of regularization parameter lamnbda.
+        ---------------------
+    """
     #measure the caluculation time 
     start_time = time.time()
 
@@ -1028,6 +1098,22 @@ def lasso_param_optim(data):
     return lasso_optim_dict, lasso_param_range
 
 def plot_lasso_param_optim_return(lasso_optim_dict, lasso_param_range):
+    """
+        input paramater
+        ----------------------
+        lasso_optim_dict :  dictionary
+            This is the dictionary which has roling_portfolio function
+            output at some values of lambda.
+        lasso_param_range : ndarray
+            The range array of regularization parameter lamnbda.
+        ---------------------
+        returns
+        ---------------------
+        None
+            This will plot the test expectation return 
+            at some values lambda.
+        ---------------------
+    """
     r = np.array([ lasso_optim_dict[str(i)]['expected_return'] for i in lasso_param_range ])
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -1037,6 +1123,21 @@ def plot_lasso_param_optim_return(lasso_optim_dict, lasso_param_range):
     plt.title('Return')
 
 def plot_lasso_param_optim_risk(lasso_optim_dict, lasso_param_range):
+    """
+        input paramater
+        ----------------------
+        lasso_optim_dict :  dictionary
+            This is the dictionary which has roling_portfolio function
+            output at some values of lambda.
+        lasso_param_range : ndarray
+            The range array of regularization parameter lamnbda.
+        ---------------------
+        returns
+        ---------------------
+        None
+            This will plot the test risk at some values lambda.
+        ---------------------
+    """
     risk = np.array([ lasso_optim_dict[str(i)]['risk'] for i in lasso_param_range ])
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -1046,17 +1147,123 @@ def plot_lasso_param_optim_risk(lasso_optim_dict, lasso_param_range):
     plt.title('Risk (variance of test return)')
 
 def min_risk_lambda(lasso_optim_dict, lasso_param_range):
+    """
+        input paramater
+        ----------------------
+        lasso_optim_dict :  dictionary
+            This is the dictionary which has roling_portfolio function
+            output at some values of lambda.
+        lasso_param_range : ndarray
+            The range array of regularization parameter lamnbda.
+        ---------------------
+        returns
+        ---------------------
+        min_lambda : float
+            The value of lambda where the minimun risk.
+        ---------------------
+    """
     risk = np.array([ lasso_optim_dict[str(i)]['risk'] for i in lasso_param_range ])
     np.where(risk == np.min(risk))
     min_lambda = lasso_param_range[np.where(risk == np.min(risk))[0][0]]
     return min_lambda
 
-def plot_cov_glasso_each_alpha(data):
-    for i in np.arange(0.0005,0.01,0.001):
+def plot_cov_glasso_each_lambda_in_one_graph(data):
+    """
+        input paramater
+        ----------------------
+        data : ndarray
+            (n * p) matrix
+        ---------------------
+        returns
+        ---------------------
+        None
+            This will plot heat map of covariance matrix estimated by glasso in one graph.
+        ---------------------
+    """
+    ax_list = [221,222,223,224]
+    ax_i = 0
+    fig = plt.figure()
+
+    for i in np.arange(0.0,0.01,0.0025):
+        title= "lambda : " + str(i)
         model = cov.GraphLasso(alpha=i, mode='cd', tol=1e-3, assume_centered=False)
         model.fit(data)
         S = model.covariance_
-        heatmap(S, title="Heat map of Covariance matrix : shrink param = {}".format(str(i)))
+        x = np.arange(S.shape[0])
+        y = np.arange(S.shape[1])
+        X,Y = np.meshgrid(x[::-1],y)
+        ax = fig.add_subplot(ax_list[ax_i])
+        ax.pcolor(X,Y,S)
+        plt.title(title)
+        ax_i += 1
+    fig.show()
+
+def plot_efficient_frontier(data):
+    """
+        input paramater
+        ----------------------
+        data : ndarray
+            (n*p) matrix
+        ---------------------
+        returns
+        ---------------------
+        None
+            plot the efficient flonier plot.
+        ---------------------
+    """
+    m = data.mean(0)
+    std = data.std(0)
+    covmat = np.cov(data, rowvar=0, bias=0)
+    flontier = pd.DataFrame(efficient_frontier(data, m, covmat),columns=["mean","std"])
+    df = pd.DataFrame(data=np.c_[m,std],index=np.arange(len(m)),columns=["mean","std"])
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.scatter(x=df["std"],y=df["mean"])
+    plt.xlabel("std")
+    plt.ylabel("mean")
+    plt.title("Efficient Frontier")
+    ax.plot(flontier['std'],flontier['mean'],c="r")
+    fig.show()
+
+def efficient_frontier(data, m, covmat):
+    """
+        input paramater
+        ----------------------
+        data : ndarray
+            (n*p) matrix
+        m : mean vector 
+            (p*1) matrix
+        covmat : covariance matrix
+            (p*p) matrix
+        ---------------------
+        returns
+        ---------------------
+        flontier_array : ndarray
+            (100*2) array
+            100 is the number of r0 range list.
+            The columuns has mean and std.
+        ---------------------
+    """
+    def return_portfolio_mean(x,m):
+        #x is weight of portfolio.
+        weight = np.array(x).flatten()
+        p_mean = np.dot(weight.T,m)
+        return p_mean
+
+    def return_portfolio_std(x,covmat):
+        weight = np.array(x).flatten()
+        p_std = np.sqrt(np.dot(np.dot(weight.T,covmat),weight))
+        return p_std
+
+    def return_weight(data,r0):
+        sol,x = mean_variance_model_optim(data,r=None,S=None,r0=r0)
+        return x
+
+    r0_list = np.linspace(0.005,0.01032242,num=100)
+    portfolio_mean = np.array([ return_portfolio_mean(return_weight(data,r0=i),m) for i in r0_list ])
+    portfolio_std = np.array([ return_portfolio_std(return_weight(data,r0=i),covmat) for i in r0_list ])
+    flontier_array = np.c_[portfolio_mean, portfolio_std]
+    return flontier_array
 
 
 if __name__ == '__main__':
